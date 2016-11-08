@@ -10,7 +10,6 @@ from django.core.management import call_command, find_commands, load_command_cla
 from django.test import TestCase
 from django.utils.six import StringIO, PY3
 
-from django_extensions.management.modelviz import use_model, generate_graph_data
 from . import force_color_support
 
 
@@ -166,115 +165,6 @@ class CommandClassTests(TestCase):
                 load_command_class('django_extensions', command)
         except Exception as e:
             self.fail("Can't load command class of {0}\n{1}".format(command, e))
-
-
-class GraphModelsTests(TestCase):
-    """
-    Tests for the `graph_models` management command.
-    """
-    def test_use_model(self):
-        include_models = [
-            'NoWildcardInclude',
-            'Wildcard*InsideInclude',
-            '*WildcardPrefixInclude',
-            'WildcardSuffixInclude*',
-            '*WildcardBothInclude*'
-        ]
-        exclude_models = [
-            'NoWildcardExclude',
-            'Wildcard*InsideExclude',
-            '*WildcardPrefixExclude',
-            'WildcardSuffixExclude*',
-            '*WildcardBothExclude*'
-        ]
-        # Any model name should be used if neither include or exclude
-        # are defined.
-        self.assertTrue(use_model(
-            'SomeModel',
-            None,
-            None
-        ))
-        # Any model name should be allowed if `*` is in `include_models`.
-        self.assertTrue(use_model(
-            'SomeModel',
-            ['OtherModel', '*', 'Wildcard*Model'],
-            None
-        ))
-        # No model name should be allowed if `*` is in `exclude_models`.
-        self.assertFalse(use_model(
-            'SomeModel',
-            None,
-            ['OtherModel', '*', 'Wildcard*Model']
-        ))
-        # Some tests with the `include_models` defined above.
-        self.assertFalse(use_model(
-            'SomeModel',
-            include_models,
-            None
-        ))
-        self.assertTrue(use_model(
-            'NoWildcardInclude',
-            include_models,
-            None
-        ))
-        self.assertTrue(use_model(
-            'WildcardSomewhereInsideInclude',
-            include_models,
-            None
-        ))
-        self.assertTrue(use_model(
-            'MyWildcardPrefixInclude',
-            include_models,
-            None
-        ))
-        self.assertTrue(use_model(
-            'WildcardSuffixIncludeModel',
-            include_models,
-            None
-        ))
-        self.assertTrue(use_model(
-            'MyWildcardBothIncludeModel',
-            include_models,
-            None
-        ))
-        # Some tests with the `exclude_models` defined above.
-        self.assertTrue(use_model(
-            'SomeModel',
-            None,
-            exclude_models
-        ))
-        self.assertFalse(use_model(
-            'NoWildcardExclude',
-            None,
-            exclude_models
-        ))
-        self.assertFalse(use_model(
-            'WildcardSomewhereInsideExclude',
-            None,
-            exclude_models
-        ))
-        self.assertFalse(use_model(
-            'MyWildcardPrefixExclude',
-            None,
-            exclude_models
-        ))
-        self.assertFalse(use_model(
-            'WildcardSuffixExcludeModel',
-            None,
-            exclude_models
-        ))
-        self.assertFalse(use_model(
-            'MyWildcardBothExcludeModel',
-            None,
-            exclude_models
-        ))
-
-    def test_no_models_dot_py(self):
-        data = generate_graph_data(['testapp_with_no_models_file'])
-        self.assertEqual(len(data['graphs']), 1)
-
-        model_name = data['graphs'][0]['models'][0]['name']
-        self.assertEqual(model_name, 'TeslaCar')
 
 
 class ShowUrlsTests(TestCase):

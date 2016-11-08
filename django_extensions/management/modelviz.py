@@ -44,7 +44,7 @@ __contributors__ = [
 ]
 
 
-def parse_file_or_list(arg):
+def parse_file_or_list(arg=None):
     if not arg:
         return []
     if isinstance(arg, (list, tuple, set)):
@@ -186,7 +186,7 @@ class ModelGraph(object):
             attributes = [field for field in appmodel._meta.local_fields]
         else:
             # Find all the 'real' attributes. Relations are depicted as graph edges instead of attributes
-            attributes = [field for field in attributes if not
+            attributes = [field for field in appmodel._meta.local_fields if not
                           isinstance(field, RelatedField)]
         return attributes
 
@@ -351,8 +351,8 @@ class ModelGraph(object):
                 model_pattern = '^%s$' % model_pattern.replace('*', '.*')
                 if re.search(model_pattern, model_name):
                     return False
-        # Check against exclude list.
-        elif self.include_models:
+        # Check against include list.
+        if self.include_models:
             for model_pattern in self.include_models:
                 model_pattern = '^%s$' % model_pattern.replace('*', '.*')
                 if re.search(model_pattern, model_name):
