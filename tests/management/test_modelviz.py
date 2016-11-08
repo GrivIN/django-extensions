@@ -222,6 +222,280 @@ class ModelVizTests(SimpleTestCase):
             [TestModelOne, TestModelTwo])
         self.assertEqual(abstracts, [TestAbstractModel])
 
+    def test_get_bases_abstract_fields(self):
+        class TestAbstractModel(models.Model):
+            family = models.CharField()
+
+            class Meta:
+                app_label = 'test'
+                abstract = True
+
+        class TestModelOne(TestAbstractModel):
+            name = models.CharField()
+
+            class Meta:
+                app_label = 'test'
+
+        class TestModelTwo(TestAbstractModel):
+            name = models.CharField()
+
+            class Meta:
+                app_label = 'test'
+
+        models_graph = ModelGraph(
+            [],
+        )
+        abstracts = models_graph.get_bases_abstract_fields(
+            TestModelOne
+        )
+        self.assertEqual(
+            abstracts,
+            [TestAbstractModel._meta.get_field('family')]
+        )
+
+    def test_get_inheritance_context_abstract(self):
+        class TestAbstractModel(models.Model):
+            family = models.CharField()
+
+            class Meta:
+                app_label = 'test'
+                abstract = True
+
+        class TestModelOne(TestAbstractModel):
+            name = models.CharField()
+
+            class Meta:
+                app_label = 'test'
+
+        models_graph = ModelGraph(
+            [],
+        )
+        abstracts = models_graph.get_inheritance_context(
+            TestModelOne, TestAbstractModel
+        )
+        self.assertEqual(
+            abstracts['label'],
+            "abstract\\ninheritance"
+        )
+
+    def test_get_inheritance_context_proxy(self):
+        class TestAbstractModel(models.Model):
+            family = models.CharField()
+
+            class Meta:
+                app_label = 'test'
+
+        class TestModelOne(TestAbstractModel):
+
+            class Meta:
+                app_label = 'test'
+                proxy = True
+
+        models_graph = ModelGraph(
+            [],
+        )
+        abstracts = models_graph.get_inheritance_context(
+            TestModelOne, TestAbstractModel
+        )
+        self.assertEqual(
+            abstracts['label'],
+            "proxy\\ninheritance"
+        )
+
+    def test_get_inheritance_context(self):
+        class TestAbstractModel(models.Model):
+            family = models.CharField()
+
+            class Meta:
+                app_label = 'test'
+
+        class TestModelOne(TestAbstractModel):
+
+            class Meta:
+                app_label = 'test'
+
+        models_graph = ModelGraph(
+            [],
+        )
+        abstracts = models_graph.get_inheritance_context(
+            TestModelOne, TestAbstractModel
+        )
+        self.assertEqual(
+            abstracts['label'],
+            "multi-table\\ninheritance"
+        )
+
+    def test_add_attributes(self):
+        field = models.Field(name='some field', verbose_name='some verbose field')
+
+        models_graph = ModelGraph(
+            [],
+            verbose_names=True
+        )
+        attributes = models_graph.add_attributes(field, abstract_fields=[])
+        self.assertIn('name', attributes)
+        self.assertIn('label', attributes)
+        self.assertEqual(attributes['label'], b'Some verbose field')
+        self.assertEqual(attributes['type'], 'Field')
+
+        models_graph = ModelGraph(
+            [],
+            verbose_names=False
+        )
+        attributes = models_graph.add_attributes(field, abstract_fields=[])
+        self.assertEqual(attributes['label'], 'some field')
+
+    def test_add_attributes_fk(self):
+        class TestModel(models.Model):
+            name = models.CharField()
+            parent = models.ForeignKey(
+                'self', verbose_name='parent verbose field')
+
+            class Meta:
+                app_label = 'test'
+
+        models_graph = ModelGraph(
+            [],
+            verbose_names=False
+        )
+        attributes = models_graph.add_attributes(
+            TestModel._meta.get_field('parent'), abstract_fields=[])
+        self.assertEqual(attributes['label'], 'parent')
+        self.assertEqual(attributes['type'], 'ForeignKey (id)')
+
+    def test_process_attributes(self):
+        class TestModel(models.Model):
+            name = models.CharField()
+            parent = models.ForeignKey(
+                'self', verbose_name='parent verbose field')
+
+            class Meta:
+                app_label = 'test'
+
+        models_graph = ModelGraph(
+            [],
+            verbose_names=False
+        )
+        attributes = models_graph.process_attributes(
+            TestModel._meta.get_field('parent'),
+            {'fields': []},
+            TestModel._meta.get_field('id'),
+            abstract_fields=[]
+        )
+        self.assertIn('fields', attributes)
+        self.assertEqual(len(attributes['fields']), 1)
+        self.assertIn('label', attributes['fields'][0])
+        self.assertEqual(attributes['fields'][0]['label'], 'parent')
+
+        attributes = models_graph.process_attributes(
+            TestModel._meta.get_field('id'),
+            {'fields': []},
+            TestModel._meta.get_field('id'),
+            abstract_fields=[]
+        )
+        self.assertEqual(attributes, {'fields': []})
+
+    def test_add_relation(self):
+        class ParentModel(models.Model):
+            name = models.CharField()
+
+            class Meta:
+                app_label = 'test'
+
+        class ChildModel(models.Model):
+            name = models.CharField()
+            father = models.ForeignKey(
+                ParentModel, verbose_name='father verbose field')
+            mother = models.ForeignKey(
+                'ParentModel', verbose_name='mother verbose field')
+            sibling = models.ForeignKey(
+                'self', verbose_name='sibling verbose field')
+
+            class Meta:
+                app_label = 'test'
+
+        models_graph = ModelGraph(
+            [],
+            verbose_names=False
+        )
+        attributes = models_graph.add_relation(
+            ChildModel._meta.get_field('father'),
+            {'relations': []},
+            extras=''
+        )
+        self.assertIn('target', attributes)
+        self.assertEqual(attributes['target'], 'ParentModel')
+        # self.assertEqual(attributes['label'], b"father (childmodel)")
+
+        models_graph = ModelGraph(
+            [],
+            verbose_names=True
+        )
+        attributes = models_graph.add_relation(
+            ChildModel._meta.get_field('father'),
+            {'relations': []},
+            extras=''
+        )
+        self.assertIn('target', attributes)
+        self.assertEqual(attributes['target'], 'ParentModel')
+        # self.assertEqual(
+        #     attributes['label'], b"Father verbose field (Childmodel)")
+
+        attributes = models_graph.add_relation(
+            ChildModel._meta.get_field('mother'),
+            {'relations': []},
+            extras=''
+        )
+        self.assertIn('target', attributes)
+        self.assertEqual(attributes['target'], 'ParentModel')
+
+        attributes = models_graph.add_relation(
+            ChildModel._meta.get_field('sibling'),
+            {'relations': []},
+            extras=''
+        )
+        self.assertIn('target', attributes)
+        self.assertEqual(attributes['target'], 'ChildModel')
+
+    def test_get_appmodel_context(self):
+        class TestModel(models.Model):
+            name = models.CharField()
+            parent = models.ForeignKey(
+                'self', verbose_name='parent verbose field')
+
+            class Meta:
+                app_label = 'test'
+                verbose_name = 'test verbose model'
+
+        models_graph = ModelGraph(
+            [],
+            verbose_names=False
+        )
+        context = models_graph.get_appmodel_context(
+            TestModel, appmodel_abstracts=[])
+        self.assertIn('fields', context)
+        self.assertIn('app_name', context)
+        self.assertIn('name', context)
+        self.assertIn('label', context)
+        self.assertIn('abstracts', context)
+        self.assertIn('relations', context)
+        self.assertEqual(context['label'], context['name'])
+        self.assertEqual(context['label'], 'TestModel')
+
+        models_graph = ModelGraph(
+            [],
+            verbose_names=True
+        )
+        context = models_graph.get_appmodel_context(
+            TestModel, appmodel_abstracts=[])
+        self.assertIn('fields', context)
+        self.assertIn('app_name', context)
+        self.assertIn('name', context)
+        self.assertIn('label', context)
+        self.assertIn('abstracts', context)
+        self.assertIn('relations', context)
+        self.assertEqual(context['label'], b'test verbose model')
+
 
 class LagencyModelVizTests(SimpleTestCase):
     @skip

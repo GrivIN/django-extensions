@@ -142,7 +142,7 @@ class ModelGraph(object):
             related_query_name = field.related_query_name()
             if self.verbose_names and related_query_name.islower():
                 related_query_name = related_query_name.replace('_', ' ').capitalize()
-            label = '{} ({})'.format(label, force_bytes(related_query_name))
+            label = '{} ({})'.format(label, related_query_name)
 
         # handle self-relationships and lazy-relationships
         if isinstance(field.rel.to, six.string_types):

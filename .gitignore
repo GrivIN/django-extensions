@@ -14,4 +14,4 @@ venv*
 .coverage
 .cache/
 django-sample-app*/
-
+htmlcov/
